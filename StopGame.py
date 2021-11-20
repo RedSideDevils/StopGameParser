@@ -1,52 +1,62 @@
+from os import write
 import requests
 from bs4 import BeautifulSoup
+import csv
 
-link = 'https://stopgame.ru/articles/new'
-html = requests.get(link)
+class Parser:
+    def __init__(self):
+        self.url = 'https://stopgame.ru/articles/new'
+        self._base_url_ = 'https://stopgame.ru'
+        self.no_check = open('nocheck.txt', 'r').read().split()
 
-soup = BeautifulSoup(html.text,'html.parser')
+    def parse(self):
+        html = requests.get(self.url)
+        soup = BeautifulSoup(html.text, 'html.parser')
+        _get_title_ = soup.find_all(
+            'div', attrs={'class': 'caption caption-bold'})
+        _get_link_for_desc_ = soup.find_all('a', href=True)
+        new = []
+        desc = []
 
-no_check = open('nocheck.txt','r').read().split()
+        for i in range(len(_get_link_for_desc_)):
 
-_base_url_ = 'https://stopgame.ru'
+            if _get_link_for_desc_[i]['href'] in self.no_check:
+                continue
 
-_get_title_ = soup.find_all('div', attrs = {'class': 'caption caption-bold'})
-_get_link_for_desc_ = soup.find_all('a',href = True)
+            elif _get_link_for_desc_[i]['href'] == _get_link_for_desc_[i-1]['href']:
+                continue
 
-new = []
-desc = []
-#make filtering
+            else:
+                new.append(self._base_url_ + _get_link_for_desc_[i]['href'])
+                
+        for i in new:
+            link = requests.get(i)
+            soup = BeautifulSoup(link.text,'html.parser')
 
-for i in range(len(_get_link_for_desc_)):
-    
-    if _get_link_for_desc_[i]['href'] in no_check:
-        continue
+            description = soup.find('section',attrs = {'class':'article article-show'})
+            try:
+                desc.append(description.get_text()[:500] + '(...)')
 
-    elif _get_link_for_desc_[i]['href'] == _get_link_for_desc_[i-1]['href']:
-        continue
+            except:
+                continue
+        
+        return new, _get_title_, desc
+               
+    def to_csv(self, file):
+        all_data = self.parse()
+        
+        with open(str(file), 'w', encoding='UTF8', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(["Title", "URL", "Description"])        
+            
+            try:
+                for i in range(len(all_data[0])):
+                    writer.writerow([all_data[1][i].get_text(), all_data[0][i], all_data[2][i]])
+            except:
+                print("Program Ended Work!")
+                
 
-    else:
-        new.append(_base_url_ + _get_link_for_desc_[i]['href'])
-
-
-for i in new:
-    link = requests.get(i)
-    soup = BeautifulSoup(link.text,'html.parser')
-
-    description = soup.find('section',attrs = {'class':'article article-show'})
-    try:
-        desc.append(description.get_text()[:500] + '(...)')
-
-    except:
-        continue
-
-for m in range(len(new)):
-    try:
-        print('title: {}'.format(_get_title_[m].get_text()))
-        print('')
-        print('url: {}'.format(new[m]))
-        print('')
-        print('short description: \n{}'.format(desc[m]))
-        print('')
-    except:
-        continue
+myclass = Parser()
+myclass.to_csv('data.csv')
+        
+        
